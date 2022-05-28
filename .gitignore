@@ -1,0 +1,8 @@
+*.iml
+dependency-reduced-pom.xml
+target/
+.idea/
+native-libs/
+.bashrc
+.aws-sam/
+cdk.out/

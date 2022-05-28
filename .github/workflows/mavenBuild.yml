@@ -1,0 +1,53 @@
+# This workflow will build a Java project with Maven
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-maven
+
+name: Build Project With Maven
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache local Maven repository
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Set up JDK 11
+        uses: actions/setup-java@v2
+        with:
+          java-version: '11'
+          distribution: 'adopt'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_GITHUB_ACTIONS_CONVOAPILAMBDA }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_GITHUB_ACTIONS_CONVOAPILAMBDA }}
+          aws-region: us-east-1
+
+      - name: Get CodeArtifact Auth Token and create Maven settings.xml to access CodeArtifact Repository
+        run: |
+          export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain convo --domain-owner 579960896624 --query authorizationToken --output text`
+          touch  ~/.m2/settings.xml
+          echo "<settings><profiles><profile><id>github</id><repositories><repository><id>central</id><name>MavenCentral</name><url>https://repo1.maven.org/maven2</url><releases><enabled>true</enabled></releases><snapshots><enabled>false</enabled></snapshots></repository></repositories><pluginRepositories/></profile><profile><id>convo-Convo</id><activation><activeByDefault>true</activeByDefault></activation><repositories><repository><id>convo-Convo</id><url>$AWS_CODE_ARTIFACT_CONVO_REPO_LINK</url></repository></repositories></profile></profiles><servers><server><id>convo-Convo</id><username>aws</username><password>$CODEARTIFACT_AUTH_TOKEN</password></server></servers></settings>" > ~/.m2/settings.xml
+        env:
+          AWS_CODE_ARTIFACT_CONVO_REPO_LINK: ${{ secrets.AWS_CODE_ARTIFACT_CONVO_REPO_LINK }}
+
+      - name: Maven compile
+        run: mvn compile
+
+      - name: Maven Test
+        run: mvn test
